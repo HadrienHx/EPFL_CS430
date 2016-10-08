@@ -3,42 +3,53 @@ package template;
 import logist.topology.Topology.City;
 
 public class MDPAction{
-	private City destination;
-	private Type type;
+	
+	private City dest;
+	private Type t;
 	
     public enum Type{
-        PICKUP,
-        MOVE
+        PICKUP(0), MOVE(1);
+        
+        private final int value;
+        private Type(int value) {
+            this.value = value;
+        }
+
+        public int getValue() {
+            return value;
+        }
     }
 	
 	public MDPAction(City c, Type t){
-		destination = c;
-		type = t;
+		this.dest = c;
+		this.t = t;
 	}
 	
-	public City getDestination(){
-		return destination;
+	public City getDest(){
+		return dest;
 	}
 	
 	public Type getType(){
-		return type;
+		return t;
 	}
 	
 	@Override
 	public int hashCode(){
-		return destination.hashCode() + 11*type.hashCode();
+		// use id to avoid conflict
+		return dest.id * State.MAX_CITY_ID + t.getValue();
 	}
 	
 	@Override
 	public boolean equals(Object o){
-		if (!type.equals(((MDPAction) o).type)) return false;
-		if(!destination.equals(((MDPAction) o).destination)) return false;
-		
+		if (!t.equals(((MDPAction) o).t)) 
+			return false;
+		if(dest.id != ((MDPAction) o).dest.id) 
+			return false;
 		return true;
 	}
 	
 	public String toString(){
-		return type + ", " + destination;
+		return t + ", " + dest;
 	}
 	
 }

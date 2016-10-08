@@ -18,7 +18,7 @@ public class ReactiveRandom implements ReactiveBehavior {
 	private Random random;
 	private double pPickup;
 	private int numActions;
-	private Agent myAgent;
+	private Agent agent;
 
 	@Override
 	public void setup(Topology topology, TaskDistribution td, Agent agent) {
@@ -31,7 +31,7 @@ public class ReactiveRandom implements ReactiveBehavior {
 		this.random = new Random();
 		this.pPickup = discount;
 		this.numActions = 0;
-		this.myAgent = agent;
+		this.agent = agent;
 	}
 
 	@Override
@@ -46,7 +46,9 @@ public class ReactiveRandom implements ReactiveBehavior {
 		}
 		
 		if (numActions >= 1) {
-			System.out.println("The total profit after "+numActions+" actions is "+myAgent.getTotalProfit()+" (average profit: "+(myAgent.getTotalProfit() / (double)numActions)+")");
+			System.out.println(agent.name() + ": the total profit after " + numActions + 
+					" actions is " + agent.getTotalProfit() + 
+					" (average profit: " + (agent.getTotalProfit() / (double)numActions) + ")");
 		}
 		numActions++;
 		

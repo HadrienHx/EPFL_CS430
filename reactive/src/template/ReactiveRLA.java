@@ -21,217 +21,201 @@ import logist.topology.Topology.City;
 
 
 public class ReactiveRLA implements ReactiveBehavior {
-
-	public static final double DELTA_THRESH = 0.00000000001;
-	public static final double MAX_ITER = Double.POSITIVE_INFINITY; 
 	
-	private Random random;
-	private int numActions;
-	private Agent myAgent;
-	private Map<City,Map<MDPAction,Double>> Q;
-	private Map<State,Double> V;
-	private Map<State,MDPAction> policy;
+	public static final double DELTA_THRESH = 1e-6;  // error term for double comparison
+	public static final int MAX_ITER = (int) 1e4;  // maximum loop
+	
+	private Random random;  // generator
+	private int numActions;  // number of actions (not always possible)
+	private Agent agent;
 	private double discount;
+	private Map<City, Map<MDPAction, Double>> Q;  // Q[state][action] = double
+	private Map<State, Double> V;  // future value of each state, independent of action
+	private Map<State, MDPAction> policy;  // offline policy
+	private Map<City, List<State>> reachableStates; // for each city, the number of states is limited
 
 	@Override
 	public void setup(Topology topology, TaskDistribution td, Agent agent) {
 		System.out.println("Setup called");
 		// Reads the discount factor from the agents.xml file.
 		// If the property is not present it defaults to 0.95
-		Double discount = agent.readProperty("discount-factor", Double.class,
-				0.95);
+		Double discount = agent.readProperty("discount-factor", Double.class, 0.95);
 		
-		this.random = new Random();
+		this.random = new Random(0);
 		this.numActions = 0;
-		this.myAgent = agent;
+		this.agent = agent;
 		this.discount = discount;
 		
 		Vehicle vehicle = agent.vehicles().get(0);
 		
-		System.out.println("Learning Q");
-		learnQ(topology,td,vehicle);
-		policy = computeOptimalPolicy(topology);
+		initReachableStates(topology);
+		
+		System.out.println("Learning MDP");
+		learnMDP(topology, td, vehicle);
+		computeOptimalPolicy(topology);
 		System.out.println("Setup finished");
-//		System.out.println(Q);
-//		System.out.println("V");
-//		System.out.println(V);
-//		System.out.println("Policy");
-//		System.out.println(policy);
 	}
-
-	
-	//Code here the learning of Q
-	//Value iteration
-	
-	private Map<City,List<State>> getReachableStates(Topology topology){
-		Map<City,List<State>> reachableStates = new HashMap<City,List<State>>();
-		
-		for(City c : topology){
-			List<State> states = new LinkedList<State>();
-			for(City d : topology){
-				states.add(new State(c,d));
-			}
-			reachableStates.put(c, states);
-		}
-		return reachableStates;
-	}
-	
-	//It is possible to loop on the keys because maps have been initialized with the right keys.
-	private void learnQ(Topology topology, TaskDistribution td, Vehicle vehicle) {
-		Q = initQ(topology);
-		V = initV(topology);
-		Map<City,List<State>> reachableStates = getReachableStates(topology);
-		
-		double deltaV = 1.;
-		
-		int count = 0;
-		
-		while ((count < MAX_ITER) && (deltaV > DELTA_THRESH)){
-			//loop for s in S
-			deltaV = 0;
-			for(State s : V.keySet()){
-				Map<MDPAction,Double> Qs = Q.get(s.getCity());
-				double qmax = Double.NEGATIVE_INFINITY;
-				
-				//loop for a in A
-				for(MDPAction a : s.getActions()){
-					int reward = 0;
-					
-					if (a.getType() == Type.PICKUP){
-						reward = s.getReward(td);
-					}
-					double cost = vehicle.costPerKm() * s.getCity().distanceTo(a.getDestination());
-					//update Q = R + gamma sum(possible tasks) P(task)*V(T(s,a))
-					
-					double v = 0;
-					
-					for(State nextState : reachableStates.get(a.getDestination())){
-						double proba = td.probability(nextState.getCity(), nextState.getDestination());
-						v = v + proba*V.get(nextState);
-					}
-//					System.out.println(s);
-//					System.out.println(a);
-//					System.out.println(reward + ", " + cost + ", " + v);
-					double q = reward - cost + discount * v;
-//					System.out.println(q);
-					
-					Qs.put(a, q);
-					if(q > qmax) {
-						qmax = q;
-					}
-				}
-				Q.put(s.getCity(),Qs);
-				//update V
-				double previousValue = V.get(s);
-				V.put(s, qmax);
-				deltaV = Math.max(deltaV, Math.abs(previousValue - qmax));		
-			}
-			count++;
-		}
-		System.out.println("Q tables created");
-	}
-	
-	private Map<City,Map<MDPAction,Double>> initQ(Topology topology) {
-		Map<City,Map<MDPAction,Double>> Q = new HashMap<City,Map<MDPAction,Double>>();
-
-		for(City c1 : topology){
-			HashMap<MDPAction,Double> temp =  new HashMap<MDPAction,Double>();
-			Q.put(c1, temp);
-		}
-		System.out.println("Q table initialized");
-		return Q;
-	}
-	
-	
-	private Map<State,Double> initV(Topology topology) {
-		Map<State,Double> V = new HashMap<State,Double>();
-		
-		double newRand;
-
-		for(City c1 : topology){
-			for(City c2: topology){
-				
-				State s = new State(c1,c2);
-				newRand = random.nextDouble();
-				
-				V.put(s, newRand);
-			}
-		}
-		return V;
-	}
-	
 	
 	@Override
 	public Action act(Vehicle vehicle, Task availableTask) {
 		Action action = chooseBestAction(vehicle.getCurrentCity(), availableTask);
 		
 		if (numActions >= 1) {
-			System.out.println("The total profit after "+numActions+" actions is "+myAgent.getTotalProfit()+" (average profit: "+(myAgent.getTotalProfit() / (double)numActions)+")");
+			System.out.println(agent.name() + ": the total profit after " + numActions + 
+					" actions is " + agent.getTotalProfit() + 
+					" (average profit: " + (agent.getTotalProfit() / (double)numActions) + ")");
 		}
 		numActions++;
 		
 		return action;
 	}
 	
-	private Map<State,MDPAction> computeOptimalPolicy(Topology topology){
-		Map<State,MDPAction> policy = new HashMap<State, MDPAction>();
+	// initialize once for all the possible states of each city 
+	private void initReachableStates(Topology topology){
+		reachableStates = new HashMap<City, List<State>>();
 		
-		for(City city : topology){
-			for(City destination : topology){
-				State currentState = new State(city,destination);
-				policy.put(currentState, computeBestAction(currentState));
+		for(City citySrc : topology){
+			List<State> states = new LinkedList<State>();
+			for(City cityPkg : topology)
+				states.add(new State(citySrc, cityPkg));
+			
+			reachableStates.put(citySrc, states);
+		}
+	}
+	
+	private void initQ(Topology topology) {
+		Q = new HashMap<City, Map<MDPAction, Double>>();
+
+		for(City citySrc : topology)
+			Q.put(citySrc, new HashMap<MDPAction, Double>());
+		
+		System.out.println("Q table initialized");
+	}
+	
+	
+	private void initV(Topology topology) {
+		V = new HashMap<State, Double>();
+		
+		for(City citySrc : topology)
+			for(City cityPkg : topology)
+				V.put(new State(citySrc, cityPkg), random.nextDouble());
+		
+		System.out.println("V table initialized");
+	}
+	
+	// It is possible to loop on the keys because maps have been initialized with the right keys.
+	private void learnMDP(Topology topology, TaskDistribution td, Vehicle vehicle) {
+		initQ(topology);
+		initV(topology);
+		
+		double improve = 1.;
+		
+		int count = 0;
+		
+		while ((count < MAX_ITER) && (improve > DELTA_THRESH)){
+			//loop for s in S
+			for(State state : V.keySet()){
+				Map<MDPAction, Double> Qs = Q.get(state.getSrc());
+				
+				double qmax = Double.NEGATIVE_INFINITY;
+				
+				City citySrc = state.getSrc();
+				
+				//loop for a in A
+				for(MDPAction a : state.getActions()){
+					
+					City cityDest = a.getDest();
+					
+					double reward = 0;
+					
+					if (a.getType() == Type.PICKUP)
+						reward = (double) td.reward(citySrc, cityDest);
+					
+					double cost = vehicle.costPerKm() * citySrc.distanceTo(cityDest);
+								
+					// the next city is determined by a
+					// but the package in the next city has a distribution
+					double v = 0;
+					for(State stateNext : reachableStates.get(cityDest)){
+						double proba = td.probability(cityDest, stateNext.getPkgDest());
+						v += proba * V.get(stateNext);
+					}
+					
+					// update Q = R + gamma sum(possible tasks) P(task)*V(T(s,a))
+					double q = reward - cost + discount * v;
+					
+					Qs.put(a, q);
+					
+					if (q > qmax) 
+						qmax = q;
+				}
+				
+				// update Q
+				Q.put(citySrc, Qs);
+				
+				// update V
+				double valueOld = V.get(state);
+				V.put(state, qmax);
+				improve = Math.abs(valueOld - qmax);		
+			}
+			count++;
+		}
+		System.out.println("Q tables created");
+	}
+	
+	private void computeOptimalPolicy(Topology topology){
+		policy = new HashMap<State, MDPAction>();
+		
+		for(City citySrc : topology){
+			for(City cityPkg : topology){
+				
+				State state = new State(citySrc, cityPkg);
+				
+				// compute an optimal policy based on Q-values
+				
+				double qmax = Double.NEGATIVE_INFINITY;
+				MDPAction bestAction = null;
+				double q;
+				
+				for(MDPAction a : state.getActions()){
+					q = Q.get(citySrc).get(a);
+					
+					if (q > qmax) {
+						qmax = q;
+						bestAction = a;
+					}
+				}
+				
+				policy.put(state, bestAction);
 			}
 		}
-		
-		return policy;
 	}
 	
 	//Used to choose the best MDPAction from the policy and turn it into an action
 	//Necessary because the State class does not have a task attribute
 	//This is due to the fact that it is possible to enumerate cities but not tasks
-	private Action chooseBestAction(City currentCity, Task task){
-		City destination = null;
-		if(task != null){
-			destination = task.deliveryCity;
-		}
-		State state = new State(currentCity, destination);
+	private Action chooseBestAction(City citySrc, Task task){
+		City cityPkg;
 		
-		MDPAction mdpa = policy.get(state);
+		if(task != null)
+			cityPkg = task.deliveryCity;
+		else
+			cityPkg = citySrc;
 		
-		Action a = null;
-		switch(mdpa.getType()){
+		MDPAction mdpAction = policy.get(new State(citySrc, cityPkg));
+		
+		Action action = null;
+		switch(mdpAction.getType()){
 		case PICKUP:
-			a = new Pickup(task);
+			action = new Pickup(task);
 			break;
 			
 		case MOVE:
-			a = new Move(mdpa.getDestination());
+			action = new Move(mdpAction.getDest());
 			break;
 		}
 		
-		return a;
+		return action;
 	}
-	
-	//Used to compute an optimal policy based on Q-values
-	private MDPAction computeBestAction(State state){
-		City currentCity = state.getCity();
-		
-		double maxVal = Double.NEGATIVE_INFINITY;
-		MDPAction bestAction = null;
-		
-		Map<MDPAction, Double> potentialActions = Q.get(currentCity);
-		List<MDPAction> actions = state.getActions();
-		double q;
-		
-		for(MDPAction a : actions){
-			q = potentialActions.get(a);
-			
-			if (q > maxVal){
-				maxVal = q;
-				bestAction = a;
-			}
-		}
-		
-		return bestAction;
-	}
+
 }

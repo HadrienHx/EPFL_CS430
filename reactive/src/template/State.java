@@ -4,72 +4,66 @@ import java.util.LinkedList;
 import java.util.List;
 
 import template.MDPAction.Type;
-import logist.task.TaskDistribution;
 import logist.topology.Topology.City;
 
 public class State {
-	private City city;
-	private City destination;
+	
+	public static final int MAX_CITY_ID = 1000;  // maximum city id number
+	
+	private City src;  // current city
+	private City pkg;  // package destination
+	
+	List<MDPAction> actions;  // possible actions
 	
 	public State(City c, City d){
-		city = c;
+		src = c;
 		
-		//If the task is for the same city it is assumed there is no task at all. 
-		if (c.equals(d)){
-			destination = null;
-		} else{
-		 destination = d;
-		}	
+		// If the task is for the same city it is assumed there is no task at all. 
+		pkg = d;
+		
+		findActions();  // find all possible actions
 	}
 	
-	public City getCity(){
-		return city;
+	public City getSrc(){
+		return src;
 	}
 	
-	public City getDestination(){
-		return destination;
+	public City getPkgDest(){
+		// get the package destination
+		return pkg;
 	}
 	
 	@Override
 	public int hashCode(){
-		if (destination != null){
-			return city.hashCode() * 11 * destination.hashCode();
-		}
-		return city.hashCode();
+		// use city id to avoid conflict
+		return src.id * MAX_CITY_ID + pkg.id; 
 	}
 	
 	@Override
 	public boolean equals(Object o){
-		if(!city.equals(((State) o).city)) 
+		if(!(src.id == (((State) o).src.id))) 
 			return false;
 		
-		if (destination == null)
-			return ((State) o).destination == null;
-		
-		return destination.equals(((State) o).destination);
+		return pkg.id == ((State) o).pkg.id;
 	}
 	
-	public int getReward(TaskDistribution td){
-		if (destination == null) return 0;
-		return td.reward(city, destination);
+	private void findActions(){
+		actions = new LinkedList<MDPAction>();
+		
+		// Only moves to nearby cities count (because if the city is not a neighbor trajectory is cut in 2)
+		for (City dest : src.neighbors())
+			actions.add(new MDPAction(dest, Type.MOVE));
+		
+		// If there is a real task
+		if (pkg.id != src.id)
+			actions.add(new MDPAction(pkg, Type.PICKUP));
 	}
 	
 	public List<MDPAction> getActions(){
-		List<MDPAction> actions = new LinkedList<MDPAction>();
-		
-		//Only moves to nearby cities count (because if the city is not a neighbor trajectory is cut in 2)
-		for(City destination : city.neighbors()){
-			actions.add(new MDPAction(destination,Type.MOVE));
-		}
-		
-		if(destination != null){
-			actions.add(new MDPAction(destination, Type.PICKUP));
-		}
-		
 		return actions;
 	}
 	
 	public String toString(){
-		return city + ", " + destination;
+		return src + ", " + pkg;
 	}
 }
