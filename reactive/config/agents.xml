@@ -7,7 +7,7 @@
 	<agent name="reactive-random">
 		<set class-path="bin/"/>
 		<set class-name="template.ReactiveRandom"/>
-		<set discount-factor=".85"/>
+		<set pickup-rate=".85"/>
 	</agent>
 
 	<agent name="reactive-rla">
@@ -16,34 +16,9 @@
 		<set discount-factor=".85"/>
 	</agent>
 
-	<agent name="reactive-rla-0.0">
+	<agent name="reactive-greedy">
 		<set class-path="bin/"/>
-		<set class-name="template.ReactiveRLA"/>
-		<set discount-factor=".0"/>
-	</agent>
-
-	<agent name="reactive-rla-0.25">
-		<set class-path="bin/"/>
-		<set class-name="template.ReactiveRLA"/>
-		<set discount-factor=".25"/>
-	</agent>
-	
-	<agent name="reactive-rla-0.5">
-		<set class-path="bin/"/>
-		<set class-name="template.ReactiveRLA"/>
-		<set discount-factor=".5"/>
-	</agent>
-
-	<agent name="reactive-rla-0.75">
-		<set class-path="bin/"/>
-		<set class-name="template.ReactiveRLA"/>
-		<set discount-factor=".75"/>
-	</agent>
-
-	<agent name="reactive-rla-1.0">
-		<set class-path="bin/"/>
-		<set class-name="template.ReactiveRLA"/>
-		<set discount-factor="1.0"/>
+		<set class-name="template.ReactiveGreedy"/>
 	</agent>
 
 </agents>

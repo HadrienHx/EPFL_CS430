@@ -13,20 +13,15 @@ import logist.task.TaskDistribution;
 import logist.topology.Topology;
 import logist.topology.Topology.City;
 
-public class ReactiveRandom implements ReactiveBehavior {
+public class ReactiveGreedy implements ReactiveBehavior {
 
 	private Random random;
-	private double pPickup;
 	private int numActions;
 	private Agent agent;
 
 	@Override
 	public void setup(Topology topology, TaskDistribution td, Agent agent) {
-
-		Double pickup = agent.readProperty("pickup-rate", Double.class, 0.85);
-
 		this.random = new Random();
-		this.pPickup = pickup;
 		this.numActions = 0;
 		this.agent = agent;
 	}
@@ -34,14 +29,23 @@ public class ReactiveRandom implements ReactiveBehavior {
 	@Override
 	public Action act(Vehicle vehicle, Task availableTask) {
 		Action action;
-
-		if (availableTask == null || random.nextDouble() > pPickup) {
-			City currentCity = vehicle.getCurrentCity();
-			action = new Move(currentCity.randomNeighbor(random));
-		} else {
-			action = new Pickup(availableTask);
-		}
 		
+		City currentCity = vehicle.getCurrentCity();
+		
+		if (availableTask == null)  // nothing else to do
+			action = new Move(currentCity.randomNeighbor(random));
+		else {
+			
+			double currentProfit = (agent.getTotalProfit() / (numActions + 1.0));
+			double reward = availableTask.reward - currentCity.distanceTo(availableTask.deliveryCity);
+			double nextProfit = (agent.getTotalProfit() + reward) / (numActions + 2.0);
+			
+			if (nextProfit > currentProfit)  // if it improves the profit, then pick up
+				action = new Pickup(availableTask);
+			else
+				action = new Move(currentCity.randomNeighbor(random));
+		}
+
 		if (numActions >= 1) {
 			System.out.println(agent.name() + ": the total profit after " + numActions + 
 					" actions is " + agent.getTotalProfit() + 

@@ -23,7 +23,7 @@ import logist.topology.Topology.City;
 public class ReactiveRLA implements ReactiveBehavior {
 	
 	public static final double DELTA_THRESH = 1e-6;  // error term for double comparison
-	public static final int MAX_ITER = (int) 1e4;  // maximum loop
+	public static final int MAX_ITER = (int) 1e3;  // maximum loop
 	
 	private Random random;  // generator
 	private int numActions;  // number of actions (not always possible)
@@ -41,7 +41,7 @@ public class ReactiveRLA implements ReactiveBehavior {
 		// If the property is not present it defaults to 0.95
 		Double discount = agent.readProperty("discount-factor", Double.class, 0.95);
 		
-		this.random = new Random(0);
+		this.random = new Random();
 		this.numActions = 0;
 		this.agent = agent;
 		this.discount = discount;
